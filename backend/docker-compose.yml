@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  todoapi:
+    build:
+      context: ./todoapi
+      dockerfile: Dockerfile
+    image: todoapi:latest
+    container_name: todoapi
+    ports:
+     - "8080:8080"
