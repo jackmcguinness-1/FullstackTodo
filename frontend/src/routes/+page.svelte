@@ -8,7 +8,7 @@
     }
 
     async function handleCredentialResponse(response: google.accounts.id.CredentialResponse) {
-        const res = await fetch("http://localhost:8080/auth/google", {
+        const res = await fetch("http://localhost:8080/auth/oauth/google", {
             method: "POST",
             body: JSON.stringify({credential: response.credential})
         })

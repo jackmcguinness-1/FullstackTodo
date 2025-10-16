@@ -1,6 +1,5 @@
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use rocket::serde::{json::Json, Deserialize};
-use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
+use rocket::{post, serde::{json::Json, Deserialize}};
 use std::{collections::HashSet, error::Error};
 
 #[derive(Deserialize, Debug)]
@@ -78,8 +77,8 @@ const GOOGLE_CLIENT_ID: &'static str = "594337534921-3arlg5tpasb984jt980p1tgdbge
 
 // this function takes the JWT that google issues to the client and verifies it against
 // googles public keys
-#[post("/auth/google", data = "<body>")]
-pub async fn google_auth(body: Json<JwtCredential>) -> String {
+#[post("/google", data = "<body>")]
+pub async fn login_google_endpoint(body: Json<JwtCredential>) -> String {
     println!("{:?}", body);
     let id_token = &body.credential;
 
@@ -87,4 +86,12 @@ pub async fn google_auth(body: Json<JwtCredential>) -> String {
         Ok(claims) => format!("Verified"),
         Err(e) => format!("Not Verified {}", e)
     }
+}
+
+async fn handle_verified_google_login() -> () {
+
+}
+
+async fn handle_google_verification_failure() -> () {
+
 }

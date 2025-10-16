@@ -1,29 +1,22 @@
-mod auth;
+mod routes;
+mod models;
+mod types;
 
-#[macro_use]
-extern crate rocket;
-
-use rocket::response::status::NotFound;
+use rocket::{launch, routes};
 use rocket_cors::{CorsOptions, AllowedOrigins};
-
-use crate::auth::google_auth;
-
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, World!"
-}
-
-
-#[get("/hello/<name>/<age>")]
-async fn hello(name: &str, age: u8) -> Result<String, NotFound<String>> {
-    match name {
-        "jack" => Ok(format!("Hello {} age {}", name, age)),
-        _ => Err(NotFound("oh no".to_string()))
-    }
-}
+use crate::routes::auth::{
+    login_google_endpoint,
+    login_email_endpoint,
+    register_email_endpoint,
+    token_auth_endpoint,
+};
+use sqlx::PgPool;
+use dotenv::dotenv;
 
 #[launch]
-fn rocket() -> _ {
+async fn rocket() -> _ {
+    dotenv().ok();
+
     let allowed_origins = AllowedOrigins::some_exact(&["http://localhost:3000"]);
     let cors = CorsOptions {
         allowed_origins,
@@ -31,7 +24,24 @@ fn rocket() -> _ {
         ..Default::default()
     }.to_cors().expect("CORS configuration failed");
 
+    let pool = PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .expect("Failed to connect to database");
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Migrations failed");
+
     rocket::build()
-        .mount("/", routes![index, hello, google_auth])
+        .manage(pool)
+        .mount("/auth", routes![
+            login_email_endpoint,
+            register_email_endpoint,
+            token_auth_endpoint,
+        ])
+        .mount("/auth/oauth", routes![
+            login_google_endpoint,
+        ])
         .attach(cors)
 }
