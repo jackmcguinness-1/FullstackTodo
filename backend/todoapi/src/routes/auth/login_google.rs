@@ -1,6 +1,11 @@
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use rocket::{post, serde::{json::Json, Deserialize}};
+use rocket::{http::{Cookie, CookieJar, Status}, post, serde::{json::Json, Deserialize}, State};
 use std::{collections::HashSet, error::Error};
+use sqlx::PgPool;
+use uuid::Uuid;
+use crate::models::user::{User, AuthProvider};
+use chrono::Utc;
+use anyhow::Result;
 
 #[derive(Deserialize, Debug)]
 pub struct Jwks {
@@ -19,7 +24,7 @@ pub struct Claims {
     pub iss: String,
     pub aud: String,
     pub sub: String,
-    pub email: Option<String>,
+    pub email: String,
     pub exp: usize,
     pub iat: usize,
     pub name: Option<String>,
@@ -78,20 +83,93 @@ const GOOGLE_CLIENT_ID: &'static str = "594337534921-3arlg5tpasb984jt980p1tgdbge
 // this function takes the JWT that google issues to the client and verifies it against
 // googles public keys
 #[post("/google", data = "<body>")]
-pub async fn login_google_endpoint(body: Json<JwtCredential>) -> String {
+pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPool>, jar: &CookieJar<'_>) -> Result<String, Status> {
+    println!("hit google auth");
     println!("{:?}", body);
     let id_token = &body.credential;
 
-    match verify_google_token(id_token, GOOGLE_CLIENT_ID).await {
-        Ok(claims) => format!("Verified"),
-        Err(e) => format!("Not Verified {}", e)
-    }
+    let claims = match verify_google_token(id_token, GOOGLE_CLIENT_ID).await {
+        Ok(claims) => claims,
+        Err(e) => {
+            eprintln!("token auth failed");
+            return Err(Status::Unauthorized);
+        }
+    };
+
+    let user_result = find_user_from_email_address(pool, &claims.email, AuthProvider::Google).await;
+
+    match user_result {
+        Ok(Some(u)) => {
+            // create a token 
+            println!("creating token for existing user");
+            return create_token(pool, jar, &u)
+                .await
+                .map_err(|_| Status::Unauthorized);
+        },
+        Ok(None) => {
+            // create the account
+            println!("creating new user");
+            let new_user = create_user_from_google_claims(pool, &claims, AuthProvider::Google)
+                .await
+                .map_err(|_| Status::Unauthorized)?;
+            // create a token for the user
+            return create_token(pool, jar, &new_user)
+                .await
+                .map_err(|_| Status::Unauthorized);
+        },
+        Err(e) => {
+            // log the error and return unauthorised
+            eprintln!("{}", e);
+            return Err(Status::Unauthorized)
+        }
+    };
 }
 
-async fn handle_verified_google_login() -> () {
+async fn create_user_from_google_claims(pool: &PgPool, claims: &Claims, provider: AuthProvider) -> Result<User> {
+    let user = sqlx::query_as!(
+        User,
+        r#"INSERT INTO users (email, username, provider, provider_id)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, email, username, provider as "provider: AuthProvider", provider_id"#,
+        claims.email,
+        claims.name,
+        provider as AuthProvider,
+        claims.sub
 
+    )
+    .fetch_one(pool)
+    .await?;
+
+    return Ok(user);
 }
 
-async fn handle_google_verification_failure() -> () {
+// this function can be put into a different package and reused for different auth providers
+async fn find_user_from_email_address(pool: &PgPool, email: &str, provider: AuthProvider) -> Result<Option<User>> {
+    let user = sqlx::query_as!(
+        User,
+        r#"SELECT id, email, username, provider as "provider: AuthProvider", provider_id FROM users WHERE email = $1 AND provider = $2"#,
+        email,
+        provider as AuthProvider,
+    )
+    .fetch_optional(pool)
+    .await?;
 
+    return Ok(user);
+}
+
+async fn create_token(pool: &PgPool, jar: &CookieJar<'_>, user: &User) -> anyhow::Result<String> {
+    let token = Uuid::new_v4();
+    // first try to put the token into our DB
+    sqlx::query!(
+        "INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3);",
+        token.to_string(),
+        user.id,
+        &Utc::now(),
+    )
+    .execute(pool)
+    .await?;
+
+    jar.add(Cookie::new("auth", token.to_string()));
+
+    Ok("tet".to_string())
 }

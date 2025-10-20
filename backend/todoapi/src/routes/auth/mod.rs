@@ -9,3 +9,5 @@ pub use register_email::register_email_endpoint;
 
 pub mod token_auth;
 pub use token_auth::token_auth_endpoint;
+
+pub mod providers;

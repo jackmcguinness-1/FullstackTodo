@@ -1,6 +1,7 @@
 mod routes;
 mod models;
 mod types;
+mod middlewares;
 
 use rocket::{launch, routes};
 use rocket_cors::{CorsOptions, AllowedOrigins};
