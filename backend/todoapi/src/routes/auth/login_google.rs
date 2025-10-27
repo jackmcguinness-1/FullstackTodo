@@ -126,14 +126,15 @@ pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPoo
 }
 
 async fn create_user_from_google_claims(pool: &PgPool, claims: &Claims, provider: AuthProvider) -> Result<User> {
+    let auth_provider_id: i32 = provider.into();
     let user = sqlx::query_as!(
         User,
-        r#"INSERT INTO users (email, username, provider, provider_id)
+        r#"INSERT INTO users (email, username, auth_provider_id, auth_provider_user_id)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, email, username, provider as "provider: AuthProvider", provider_id"#,
+        RETURNING id, email, username, auth_provider_id, auth_provider_user_id"#,
         claims.email,
         claims.name,
-        provider as AuthProvider,
+        auth_provider_id,
         claims.sub
 
     )
@@ -145,11 +146,12 @@ async fn create_user_from_google_claims(pool: &PgPool, claims: &Claims, provider
 
 // this function can be put into a different package and reused for different auth providers
 async fn find_user_from_email_address(pool: &PgPool, email: &str, provider: AuthProvider) -> Result<Option<User>> {
+    let auth_provider_id: i32 = provider.into();
     let user = sqlx::query_as!(
         User,
-        r#"SELECT id, email, username, provider as "provider: AuthProvider", provider_id FROM users WHERE email = $1 AND provider = $2"#,
+        r#"SELECT id, email, username, auth_provider_id, auth_provider_user_id FROM users WHERE email = $1 AND auth_provider_id = $2"#,
         email,
-        provider as AuthProvider,
+        auth_provider_id,
     )
     .fetch_optional(pool)
     .await?;
