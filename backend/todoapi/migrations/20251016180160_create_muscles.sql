@@ -1,0 +1,4 @@
+CREATE TABLE muscles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL
+);

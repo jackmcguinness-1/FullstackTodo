@@ -1,3 +1,4 @@
+-- this table keeps track of user sessions
 CREATE TABLE sessions (
     token VARCHAR(255) PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
