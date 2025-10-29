@@ -1,10 +1,9 @@
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use rocket::{http::{Cookie, CookieJar, Status}, post, serde::{json::Json, Deserialize}, State};
+use rocket::{http::{CookieJar, Status}, post, serde::{json::Json, Deserialize}, State};
 use std::{collections::HashSet, error::Error};
 use sqlx::PgPool;
-use uuid::Uuid;
-use crate::models::user::{User, AuthProvider};
-use chrono::Utc;
+use crate::{models::user::{User, UserCreation}, routes::auth::providers::AuthProvider};
+use super::util;
 use anyhow::Result;
 
 #[derive(Deserialize, Debug)]
@@ -96,24 +95,30 @@ pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPoo
         }
     };
 
-    let user_result = find_user_from_email_address(pool, &claims.email, AuthProvider::Google).await;
+    let user_result = util::find_user_from_email_address(pool, &claims.email, AuthProvider::Google).await;
 
     match user_result {
         Ok(Some(u)) => {
             // create a token 
             println!("creating token for existing user");
-            return create_token(pool, jar, &u)
+            return util::create_token(pool, jar, &u)
                 .await
                 .map_err(|_| Status::Unauthorized);
         },
         Ok(None) => {
             // create the account
             println!("creating new user");
-            let new_user = create_user_from_google_claims(pool, &claims, AuthProvider::Google)
+            let user_creation = UserCreation {
+                email: claims.email.clone(),
+                username: claims.name.unwrap_or(claims.email.clone()),
+                auth_provider_id: AuthProvider::Google.into(),
+                auth_provider_user_id: Some(claims.sub),
+            };
+            let new_user = util::create_user(pool, user_creation)
                 .await
                 .map_err(|_| Status::Unauthorized)?;
             // create a token for the user
-            return create_token(pool, jar, &new_user)
+            return util::create_token(pool, jar, &new_user)
                 .await
                 .map_err(|_| Status::Unauthorized);
         },
@@ -123,55 +128,4 @@ pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPoo
             return Err(Status::Unauthorized)
         }
     };
-}
-
-async fn create_user_from_google_claims(pool: &PgPool, claims: &Claims, provider: AuthProvider) -> Result<User> {
-    let auth_provider_id: i32 = provider.into();
-    let user = sqlx::query_as!(
-        User,
-        r#"INSERT INTO users (email, username, auth_provider_id, auth_provider_user_id)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, email, username, auth_provider_id, auth_provider_user_id"#,
-        claims.email,
-        claims.name,
-        auth_provider_id,
-        claims.sub
-
-    )
-    .fetch_one(pool)
-    .await?;
-
-    return Ok(user);
-}
-
-// this function can be put into a different package and reused for different auth providers
-async fn find_user_from_email_address(pool: &PgPool, email: &str, provider: AuthProvider) -> Result<Option<User>> {
-    let auth_provider_id: i32 = provider.into();
-    let user = sqlx::query_as!(
-        User,
-        r#"SELECT id, email, username, auth_provider_id, auth_provider_user_id FROM users WHERE email = $1 AND auth_provider_id = $2"#,
-        email,
-        auth_provider_id,
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    return Ok(user);
-}
-
-async fn create_token(pool: &PgPool, jar: &CookieJar<'_>, user: &User) -> anyhow::Result<String> {
-    let token = Uuid::new_v4();
-    // first try to put the token into our DB
-    sqlx::query!(
-        "INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3);",
-        token.to_string(),
-        user.id,
-        &Utc::now(),
-    )
-    .execute(pool)
-    .await?;
-
-    jar.add(Cookie::new("auth", token.to_string()));
-
-    Ok("tet".to_string())
 }

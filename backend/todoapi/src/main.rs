@@ -11,6 +11,9 @@ use crate::routes::auth::{
     register_email_endpoint,
     token_auth_endpoint,
 };
+use crate::routes::api::{
+    equipment::get_equipment
+};
 use sqlx::PgPool;
 use dotenv::dotenv;
 
@@ -43,6 +46,9 @@ async fn rocket() -> _ {
         ])
         .mount("/auth/oauth", routes![
             login_google_endpoint,
+        ])
+        .mount("/api", routes![
+            get_equipment,
         ])
         .attach(cors)
 }

@@ -1,3 +1,6 @@
+mod login_dev;
+pub use login_dev::login_dev_endpoint;
+
 mod login_google;
 pub use login_google::login_google_endpoint;
 
@@ -11,3 +14,5 @@ pub mod token_auth;
 pub use token_auth::token_auth_endpoint;
 
 pub mod providers;
+
+pub mod util;
