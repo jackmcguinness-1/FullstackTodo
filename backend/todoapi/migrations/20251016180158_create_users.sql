@@ -3,7 +3,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(32) NOT NULL,
     auth_provider_id INT NOT NULL REFERENCES auth_providers(id), 
-    auth_provider_user_id VARCHAR(255) NOT NULL,
+    auth_provider_user_id VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

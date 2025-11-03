@@ -1,0 +1,15 @@
+[
+    {
+        "created_by": "system",
+        "name": "bicep curl",
+        "image_path": null,
+        "description": "curl the bicep",
+        "muscles": [
+            {
+                "bicep": 10,
+                "brachioradialis": 2
+            }
+        ],
+        "public": true
+    }
+]

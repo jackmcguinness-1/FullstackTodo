@@ -17,9 +17,15 @@ impl<'r> FromRequest<'r> for AuthGuard {
         let pool = req.rocket().state::<PgPool>().unwrap();
         
         // Get session_id from cookie
-        let token = match cookies.get_private("auth") {
-            Some(cookie) => cookie.value().to_string(),
-            None => return Outcome::Error((Status::Unauthorized, ())),
+        let token = match cookies.get("auth") {
+            Some(cookie) => {
+                println!("cookie found: {}", cookie.value().to_string());
+                cookie.value().to_string()
+            },
+            None => {
+                println!("no cookie found!");
+                return Outcome::Error((Status::Unauthorized, ()))
+            },
         };
         
         // Look up session in database
@@ -33,6 +39,8 @@ impl<'r> FromRequest<'r> for AuthGuard {
         )
         .fetch_optional(pool)
         .await;
+
+        println!("{:?}", session);
         
         match session {
             Ok(Some(session)) => {

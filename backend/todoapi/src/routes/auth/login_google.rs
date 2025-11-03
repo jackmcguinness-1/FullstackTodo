@@ -95,7 +95,7 @@ pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPoo
         }
     };
 
-    let user_result = util::find_user_from_email_address(pool, &claims.email, AuthProvider::Google).await;
+    let user_result = util::get_user_from_email_address(pool, &claims.email, AuthProvider::Google).await;
 
     match user_result {
         Ok(Some(u)) => {
@@ -114,7 +114,7 @@ pub async fn login_google_endpoint(body: Json<JwtCredential>, pool: &State<PgPoo
                 auth_provider_id: AuthProvider::Google.into(),
                 auth_provider_user_id: Some(claims.sub),
             };
-            let new_user = util::create_user(pool, user_creation)
+            let new_user = util::create_user(pool, &user_creation)
                 .await
                 .map_err(|_| Status::Unauthorized)?;
             // create a token for the user

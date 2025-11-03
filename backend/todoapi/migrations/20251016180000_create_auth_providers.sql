@@ -1,4 +1,4 @@
 CREATE TABLE auth_providers (
-    id SERIAL PRIMARY KEY,
+    id INT PRIMARY KEY,
     name VARCHAR(255)
 );

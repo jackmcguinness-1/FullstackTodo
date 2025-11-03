@@ -6,13 +6,15 @@ mod middlewares;
 use rocket::{launch, routes};
 use rocket_cors::{CorsOptions, AllowedOrigins};
 use crate::routes::auth::{
+    login_dev_endpoint,
     login_google_endpoint,
     login_email_endpoint,
     register_email_endpoint,
     token_auth_endpoint,
 };
 use crate::routes::api::{
-    equipment::get_equipment
+    equipment::get_equipment_endpoint,
+    equipment::post_equipment_endpoint,
 };
 use sqlx::PgPool;
 use dotenv::dotenv;
@@ -43,12 +45,14 @@ async fn rocket() -> _ {
             login_email_endpoint,
             register_email_endpoint,
             token_auth_endpoint,
+            login_dev_endpoint,
         ])
         .mount("/auth/oauth", routes![
             login_google_endpoint,
         ])
         .mount("/api", routes![
-            get_equipment,
+            get_equipment_endpoint,
+            post_equipment_endpoint,
         ])
         .attach(cors)
 }

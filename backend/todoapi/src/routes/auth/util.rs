@@ -2,10 +2,10 @@ use crate::{models::user::{User, UserCreation}, routes::auth::providers::AuthPro
 use sqlx::PgPool;
 use uuid::Uuid;
 use rocket::http::{CookieJar, Cookie};
-use chrono::Utc;
-use anyhow::Result;
+use chrono::{Duration, Utc};
+use anyhow::{Error, Result};
 
-pub async fn find_user_from_email_address(pool: &PgPool, email: &str, provider: AuthProvider) -> Result<Option<User>> {
+pub async fn get_user_from_email_address(pool: &PgPool, email: &str, provider: AuthProvider) -> Result<Option<User>> {
     let auth_provider_id: i32 = provider.into();
     let user = sqlx::query_as!(
         User,
@@ -26,17 +26,17 @@ pub async fn create_token(pool: &PgPool, jar: &CookieJar<'_>, user: &User) -> an
         "INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3);",
         token.to_string(),
         user.id,
-        &Utc::now(),
+        &(Utc::now() + Duration::days(7)),
     )
     .execute(pool)
     .await?;
 
     jar.add(Cookie::new("auth", token.to_string()));
 
-    Ok("tet".to_string())
+    Ok(token.to_string())
 }
 
-pub async fn create_user(pool: &PgPool, user_creation: UserCreation) -> Result<User> {
+pub async fn create_user(pool: &PgPool, user_creation: &UserCreation) -> Result<User> {
     let user = sqlx::query_as!(
         User,
         r#"INSERT INTO users (email, username, auth_provider_id, auth_provider_user_id)
